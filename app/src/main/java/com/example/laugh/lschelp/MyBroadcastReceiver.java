@@ -46,6 +46,7 @@ public class MyBroadcastReceiver extends BroadcastReceiver {
                 }
                 if(count == 0){
                     activity.setFinishNumber(activity.getFinishNumber() + 1);
+                    activity.createtoolbar("0:00");
                     activity.raiseNotification(
                             "第" + String.valueOf(activity.getFinishNumber()) + "次已完成");
                 }
@@ -77,6 +78,7 @@ public class MyBroadcastReceiver extends BroadcastReceiver {
                 }
                 if(count == 0){
                     activity.setFinishNumber(activity.getFinishNumber() + 1);
+                    activity.createtoolbar("0:00");
                     activity.raiseNotification(
                             "第" + String.valueOf(activity.getFinishNumber()) + "次已完成");
                 }
