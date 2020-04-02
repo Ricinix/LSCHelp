@@ -8,75 +8,48 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.BitmapFactory;
-import android.graphics.Color;
 import android.media.AudioManager;
-import android.os.Build;
 import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.RemoteViews;
 import android.widget.Toast;
 
-public class MainActivity extends AppCompatActivity {
+import com.example.laugh.lschelp.data.CountTime;
+import com.example.laugh.lschelp.receiver.MyBroadcastReceiver;
+import com.example.laugh.lschelp.util.StatusBarUtils;
 
-    public NotificationManager manager;
-    public RemoteViews contentView;
+public class MainActivity extends AppCompatActivity implements TimeCallBack {
+
+    private NotificationManager manager;
     private MyBroadcastReceiver myBroadcastReceiver;
-    private Button quit;
-    private AudioManager audioManager;
+    private static final int NOTIFICATION_ID = 2;
+    private static final int TIME_ID = 1;
 
-    public void setFinishNumber(int finishNumber) {
-        this.finishNumber = finishNumber;
-    }
-
-    public int getFinishNumber() {
-        return finishNumber;
-    }
-
+    /**
+     * 完成了几次
+     */
     private int finishNumber = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         //通知栏沉浸
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
-            Window window = getWindow();
-            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-            window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            window.setStatusBarColor(Color.TRANSPARENT);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-        }
+        StatusBarUtils.immersive(this);
         setContentView(R.layout.activity_main);
 
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        checkRingerMode();
+        setClickListener();
         manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        quit = (Button) findViewById(R.id.button);
-        quit.setOnClickListener(v->{
-            finish();
-        });
         //通知channel
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
-            String channelId1 = "time";
-            String channelName1 = "计时";
-            int important1 = NotificationManager.IMPORTANCE_LOW;
-            createNotificationChannel(channelId1, channelName1, important1);
+        createNotificationChannel(getString(R.string.channel_time_id), getString(R.string.channel_time_name), NotificationManager.IMPORTANCE_LOW);
+        createNotificationChannel(getString(R.string.channel_notification_id), getString(R.string.channel_notification_name), NotificationManager.IMPORTANCE_HIGH);
+        createToolbar(CountTime.newInstance());
+        initReceiver();
+    }
 
-            String channelId2 = "notification";
-            String channelName2 = "通知";
-            int important2 = NotificationManager.IMPORTANCE_HIGH;
-            createNotificationChannel(channelId2, channelName2, important2);
-        }
-        createtoolbar("0:00");
-        initRecevier();
-        if (audioManager.getRingerMode() == 0){
-            Toast.makeText(this, "请开启震动", Toast.LENGTH_SHORT).show();
-        }
+    private void setClickListener(){
+        findViewById(R.id.button).setOnClickListener(v -> finish());
     }
 
     @Override
@@ -86,6 +59,13 @@ public class MainActivity extends AppCompatActivity {
         manager.cancelAll();
     }
 
+    /**
+     * 创建通知通道（Android8.0以上需要）
+     *
+     * @param channelId: 通道ID
+     * @param channelName: 通道名字
+     * @param important: 通道的等级
+     */
     private void createNotificationChannel(String channelId, String channelName, int important) {
         NotificationChannel channel = new NotificationChannel(channelId, channelName, important);
         if(important >= NotificationManager.IMPORTANCE_HIGH){
@@ -99,7 +79,17 @@ public class MainActivity extends AppCompatActivity {
         manager.createNotificationChannel(channel);
     }
 
-    public void createtoolbar(String time){
+    /**
+     * 检测是否开启震动
+     */
+    private void checkRingerMode(){
+        AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager.getRingerMode() == 0){
+            Toast.makeText(this, "请开启震动", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void createToolbar(CountTime countTime){
         Intent button2 = new Intent(MyBroadcastReceiver.TWO);
         Intent button3 = new Intent(MyBroadcastReceiver.THREE);
         Intent buttonQ = new Intent(MyBroadcastReceiver.QUIT);
@@ -109,37 +99,59 @@ public class MainActivity extends AppCompatActivity {
         PendingIntent button3Pi = PendingIntent.getBroadcast(this, 0, button3, 0);
         PendingIntent buttonQPi = PendingIntent.getBroadcast(this, 0, buttonQ, 0);
         PendingIntent buttonCPi = PendingIntent.getBroadcast(this, 0, buttonC, 0);
-        contentView = new RemoteViews(getPackageName(), R.layout.notification);
+        RemoteViews contentView = new RemoteViews(getPackageName(), R.layout.notification);
         contentView.setOnClickPendingIntent(R.id.two_minute, button2Pi);
         contentView.setOnClickPendingIntent(R.id.three_minute, button3Pi);
         contentView.setOnClickPendingIntent(R.id.quit, buttonQPi);
         contentView.setOnClickPendingIntent(R.id.cancel, buttonCPi);
-        contentView.setTextViewText(R.id.time_text, String.valueOf(finishNumber) + " - " + time);
+        contentView.setTextViewText(R.id.time_text, countTime.toTimeMsg(finishNumber));
 
-        Notification notification = new NotificationCompat.Builder(this, "time")
+        // 创建通知
+        Notification notification = new NotificationCompat.Builder(this, getString(R.string.channel_time_id))
                 .setContent(contentView)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .build();
         notification.flags = Notification.FLAG_ONGOING_EVENT;
-        manager.notify(1, notification);
+        manager.notify(TIME_ID, notification);
     }
 
-    public void raiseNotification(String content){
+    @Override
+    public void refreshTime(CountTime countTime) {
+        createToolbar(countTime);
+    }
 
-        Notification notification;
-        notification = new NotificationCompat.Builder(this, "notification")
+    @Override
+    public void timeout() {
+        ++finishNumber;
+        refreshTime(CountTime.newInstance());
+        raiseNotification();
+    }
+
+    @Override
+    public void resetTime() {
+        finishNumber = 0;
+        manager.cancel(NOTIFICATION_ID);
+        refreshTime(CountTime.newInstance());
+    }
+
+    @Override
+    public void quit() {
+        finish();
+    }
+
+    private void raiseNotification(){
+        Notification notification = new NotificationCompat.Builder(this, getString(R.string.channel_notification_id))
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setLargeIcon(BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher_background))
-                .setContentText(content)
-                .setContentTitle("通知")
+                .setContentText(getString(R.string.notification_template, finishNumber))
+                .setContentTitle(getString(R.string.channel_notification_name))
                 .setWhen(System.currentTimeMillis())
                 .setAutoCancel(true)
                 .build();
-
-        manager.notify(2, notification);
+        manager.notify(NOTIFICATION_ID, notification);
     }
 
-    private void initRecevier(){
+    private void initReceiver(){
         myBroadcastReceiver = new MyBroadcastReceiver(MainActivity.this);
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(MyBroadcastReceiver.TWO);

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_time_id">time</string>
+    <string name="channel_time_name">计时</string>
+
+    <string name="channel_notification_id">notification</string>
+    <string name="channel_notification_name">通知</string>
+
+    <string name="notification_template">第%d次已完成</string>
+
+</resources>
